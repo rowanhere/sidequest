@@ -8,7 +8,7 @@ body {
 .container { max-width: 100%; min-height: 100vh; }
 .header { 
   background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
-  padding: 20px 16px;
+  padding: 16px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
 }
@@ -22,7 +22,7 @@ body {
   background-clip: text;
 }
 .header p { font-size: 13px; color: #94a3b8; font-weight: 500; }
-.content { padding: 16px; max-width: 1200px; margin: 0 auto; }
+.content { padding: 12px; max-width: 1200px; margin: 0 auto; }
 .button-container {
   display: flex;
   flex-direction: column;
@@ -442,23 +442,120 @@ body {
 .linkish { color: #93c5fd; text-decoration: underline; cursor: pointer; font-weight: 700; }
 
 /* History Section Styles */
-.history-card {
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 24px;
+.history-container {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
   animation: fadeIn 0.3s ease-in-out;
 }
 
-.history-header {
-  margin-bottom: 24px;
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
-.history-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: #e5e7eb;
-  letter-spacing: -0.5px;
+.balance-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.balance-label {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.balance-value {
+  font-size: 44px;
+  font-weight: 900;
+  color: #f1f5f9;
+  letter-spacing: -1px;
+}
+
+.stats-section {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  background: rgba(30, 41, 59, 0.4);
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.stat-value.up {
+  color: #10b981;
+}
+
+.stat-value.down {
+  color: #ef4444;
+}
+
+.time-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  justify-content: flex-start;
+}
+
+.time-btn {
+  padding: 8px 16px;
+  background: rgba(30, 41, 59, 0.6);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.time-btn:hover {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.time-btn.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  border-color: #10b981;
+  font-weight: 600;
+}
+
+.chart-container {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 16px;
+  padding: 0;
+  overflow: hidden;
+  height: 450px;
+  width: 100%;
 }
 
 .history-empty {
@@ -468,16 +565,6 @@ body {
   padding: 60px 20px;
   font-size: 16px;
 }
-
-.recharts-wrapper {
-  width: 100%;
-}
-
-.recharts-surface {
-  background: transparent !important;
-}
-
-.recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
   stroke: rgba(255, 255, 255, 0.1) !important;
 }
@@ -508,72 +595,5 @@ body {
 }
 
 /* Stock Price Chart Styles */
-.stock-header {
-  margin-bottom: 32px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
 
-.stock-title {
-  font-size: 16px;
-  color: #94a3b8;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
-
-.stock-price {
-  font-size: 48px;
-  font-weight: 900;
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 12px;
-  line-height: 1;
-}
-
-.stock-stats {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.stock-change {
-  font-size: 16px;
-  font-weight: 700;
-  padding: 8px 16px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stock-change.up {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.stock-change.down {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.stock-range {
-  display: flex;
-  gap: 24px;
-  font-size: 13px;
-  color: #cbd5e1;
-  font-weight: 600;
-}
-
-.stock-range span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 

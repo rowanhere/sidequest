@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import './App.css';
+import WalletManager from './components/WalletManager';
 
 const rpcEndpoints = [
   'https://mainnet.helius-rpc.com/?api-key=c17d7381-856c-4e14-9f72-ba31e6e0957d',
@@ -10,7 +11,7 @@ const rpcEndpoints = [
 
 const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
 
-const addresses = [
+const DEFAULT_ADDRESSES = [
   { address: '9S5uzKP3HEcP69Hz978X5j4jx2f8oT1gQgq636g921mg', index: 'ore1' },
   { address: '4d7zxRVL35ciYRvxPtSfkExbN4UfmVhbwSmj7rnQbE6W', index: 'ore2' },
   { address: 'DJ4bqPXiMwTqgUPyYt3WYqqSWv7Qdn1U9pzm2XgZtfmP', index: 'ore3' },
@@ -57,17 +58,19 @@ function App() {
   const [previousSnapshot, setPreviousSnapshot] = useState(null); // { generatedAt, wallets }
   const [editing, setEditing] = useState({}); // { key: boolean }
   const [customDataMap, setCustomDataMap] = useLocalStorageObject('wallet_custom_map', {});
+  const [walletAddresses, setWalletAddresses] = useLocalStorageObject('wallet_addresses', DEFAULT_ADDRESSES);
+  const [showWalletManager, setShowWalletManager] = useState(false);
   const [historyData, setHistoryData] = useState([]); // Graph data from API
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [zoomDomain, setZoomDomain] = useState({ start: 0, end: 100 }); // Zoom range percentage
+  const [zoomDomain, setZoomDomain] = useState({ start: 0, end: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
-  const [timeFilter, setTimeFilter] = useState('all'); // 'all', '1d', '3d', '1w'
+  const [timeFilter, setTimeFilter] = useState('all');
 
   const rpcIndexRef = useRef(0);
   const chartRef = useRef(null);
 
-  // Add wheel event listener with passive: false to prevent browser zoom
+  // Wheel zoom handler
   useEffect(() => {
     const chartElement = chartRef.current;
     if (!chartElement) return;
@@ -101,13 +104,10 @@ function App() {
     };
 
     chartElement.addEventListener('wheel', wheelHandler, { passive: false });
-    
-    return () => {
-      chartElement.removeEventListener('wheel', wheelHandler);
-    };
+    return () => chartElement.removeEventListener('wheel', wheelHandler);
   }, [historyData.length]);
 
-  // Mouse drag handlers for panning
+  // Mouse drag handlers
   const handleMouseDown = useCallback((e) => {
     setIsDragging(true);
     setDragStart(e.clientX);
@@ -125,7 +125,6 @@ function App() {
       let newStart = prev.start + shift;
       let newEnd = prev.end + shift;
       
-      // Keep within bounds
       if (newStart < 0) {
         newStart = 0;
         newEnd = range;
@@ -155,11 +154,9 @@ function App() {
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Filtered data based on zoom
   const visibleData = useMemo(() => {
     if (!historyData.length) return [];
     
-    // Apply time filter first
     let filteredData = historyData;
     if (timeFilter !== 'all') {
       const now = new Date();
@@ -180,12 +177,11 @@ function App() {
       }
       
       filteredData = historyData.filter(item => {
-        if (!item.rawDate) return true; // Include items without date
+        if (!item.rawDate) return true;
         return item.rawDate >= cutoffTime;
       });
     }
     
-    // Then apply zoom
     const startIdx = Math.floor((zoomDomain.start / 100) * filteredData.length);
     const endIdx = Math.ceil((zoomDomain.end / 100) * filteredData.length);
     return filteredData.slice(startIdx, endIdx);
@@ -294,7 +290,7 @@ function App() {
     let totalSol = 0;
     let totalOre = 0;
 
-    for (const item of addresses) {
+    for (const item of walletAddresses) {
       const sol = await fetchSolBalance(item.address);
       const ore = await fetchOreBalance(item.address);
       const price = parseFloat(((sol * prices.sol) + (ore * prices.ore)).toFixed(2));
@@ -306,7 +302,7 @@ function App() {
 
     out.total = { address: '--- TOTAL ---', sol: totalSol, ore: totalOre, price: totalPrice };
     return { timestamp: new Date().toLocaleString(), results: out };
-  }, [fetchOreBalance, fetchPrices, fetchSolBalance]);
+  }, [fetchOreBalance, fetchPrices, fetchSolBalance, walletAddresses]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -414,6 +410,7 @@ function App() {
           <button className={`nav-btn ${active === 'overview' ? 'active' : ''}`} onClick={() => setActive('overview')}>Overview</button>
           <button className={`nav-btn ${active === 'compare' ? 'active' : ''}`} onClick={() => setActive('compare')}>Compare</button>
                     <button className={`nav-btn ${active === 'history' ? 'active' : ''}`} onClick={() => { setActive('history'); fetchBalanceHistory(); }}>Balance History</button>
+          <button className="nav-btn ghost" onClick={() => setShowWalletManager(true)}>🔑 Manage Wallets</button>
           <button className="nav-btn ghost" onClick={onDownloadJson} disabled={!results}>Download JSON</button>
           <label className="nav-btn ghost" htmlFor="snapshotInput" style={{ cursor: 'pointer' }}>Load Previous JSON</label>
           <input type="file" id="snapshotInput" accept="application/json" style={{ display: 'none' }} onChange={onSnapshotUpload} />
@@ -606,7 +603,7 @@ function App() {
         </div>
 
         <div id="history-section" className={`section ${active === 'history' ? 'active' : ''}`}>
-          <div className="history-card">
+          <div className="history-container">
             {historyLoading ? (
               <div className="loading">
                 <div className="spinner"></div>
@@ -616,27 +613,47 @@ function App() {
               <div className="history-empty">No historical data available yet. Check back after some time.</div>
             ) : (
               <>
-                {/* Stock Price Header */}
-                <div className="stock-header">
-                  <div className="stock-title">💰 Portfolio Balance</div>
-                  <div className="stock-price">
-                    ${historyData[historyData.length - 1]?.value || '0.00'}
-                  </div>
-                  <div className="stock-stats">
+                {/* Clean Header */}
+                <div className="chart-header">
+                  <div className="balance-section">
+                    <div className="balance-label">Total Balance</div>
                     {(() => {
                       const first = parseFloat(historyData[0]?.value || 0);
                       const last = parseFloat(historyData[historyData.length - 1]?.value || 0);
+                      const isUp = last >= first;
+                      
+                      return (
+                        <div className="balance-value" style={{ color: isUp ? '#10b981' : '#ef4444' }}>
+                          ${last.toFixed(2)}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="stats-section">
+                    {(() => {
+                      const first = parseFloat(visibleData[0]?.value || 0);
+                      const last = parseFloat(visibleData[visibleData.length - 1]?.value || 0);
                       const change = last - first;
                       const changePercent = first === 0 ? 0 : (change / first) * 100;
                       const isUp = change >= 0;
+                      const min = Math.min(...visibleData.map(d => parseFloat(d.value)));
+                      const max = Math.max(...visibleData.map(d => parseFloat(d.value)));
+                      
                       return (
                         <>
-                          <div className={`stock-change ${isUp ? 'up' : 'down'}`}>
-                            {isUp ? '▲' : '▼'} ${Math.abs(change).toFixed(2)} ({changePercent.toFixed(2)}%)
+                          <div className="stat-item">
+                            <span className="stat-label">Change</span>
+                            <span className={`stat-value ${isUp ? 'up' : 'down'}`}>
+                              {isUp ? '+' : '-'}${Math.abs(change).toFixed(2)} ({Math.abs(changePercent).toFixed(1)}%)
+                            </span>
                           </div>
-                          <div className="stock-range">
-                            <span>Low: ${Math.min(...historyData.map(d => parseFloat(d.value))).toFixed(2)}</span>
-                            <span>High: ${Math.max(...historyData.map(d => parseFloat(d.value))).toFixed(2)}</span>
+                          <div className="stat-item">
+                            <span className="stat-label">Low</span>
+                            <span className="stat-value">${min.toFixed(2)}</span>
+                          </div>
+                          <div className="stat-item">
+                            <span className="stat-label">High</span>
+                            <span className="stat-value">${max.toFixed(2)}</span>
                           </div>
                         </>
                       );
@@ -644,112 +661,124 @@ function App() {
                   </div>
                 </div>
 
-                {/* Time Filter Buttons */}
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', justifyContent: 'center' }}>
-                  <button 
-                    onClick={() => setTimeFilter('1d')} 
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: timeFilter === '1d' ? '#3b82f6' : '#1f2937',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: timeFilter === '1d' ? 'bold' : 'normal'
-                    }}
-                  >
-                    1D
-                  </button>
-                  <button 
-                    onClick={() => setTimeFilter('3d')} 
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: timeFilter === '3d' ? '#3b82f6' : '#1f2937',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: timeFilter === '3d' ? 'bold' : 'normal'
-                    }}
-                  >
-                    3D
-                  </button>
-                  <button 
-                    onClick={() => setTimeFilter('1w')} 
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: timeFilter === '1w' ? '#3b82f6' : '#1f2937',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: timeFilter === '1w' ? 'bold' : 'normal'
-                    }}
-                  >
-                    1W
-                  </button>
-                  <button 
-                    onClick={() => setTimeFilter('all')} 
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: timeFilter === 'all' ? '#3b82f6' : '#1f2937',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: timeFilter === 'all' ? 'bold' : 'normal'
-                    }}
-                  >
-                    All
-                  </button>
+                {/* Time Range Buttons */}
+                <div className="time-filters">
+                  {['1d', '3d', '1w', 'all'].map((filter) => (
+                    <button 
+                      key={filter}
+                      onClick={() => setTimeFilter(filter)}
+                      className={`time-btn ${timeFilter === filter ? 'active' : ''}`}
+                    >
+                      {filter.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Chart */}
-                <div 
-                  ref={chartRef}
-                  onMouseDown={handleMouseDown}
-                  style={{ 
-                    cursor: isDragging ? 'grabbing' : 'grab', 
-                    touchAction: 'none',
-                    userSelect: 'none'
-                  }}
-                >
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={visibleData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="timestamp" 
-                        tick={false}
-                      />
-                      <YAxis 
-                        domain={['dataMin - 10', 'dataMax + 10']}
-                        label={{ value: 'Value ($)', angle: -90, position: 'insideLeft' }}
-                      />
-                      <Tooltip 
-                        formatter={(value) => `$${value}`}
-                        labelFormatter={(label, payload) => {
-                          if (payload && payload[0] && payload[0].payload.fullDate) {
-                            return payload[0].payload.fullDate;
-                          }
-                          return label;
-                        }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="value" 
-                        stroke="#3b82f6" 
-                        dot={{ fill: '#3b82f6', r: 3 }}
-                        activeDot={{ r: 5 }}
-                      />
-                      <Brush dataKey="timestamp" height={30} stroke="#3b82f6" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                {(() => {
+                  const first = parseFloat(historyData[0]?.value || 0);
+                  const last = parseFloat(historyData[historyData.length - 1]?.value || 0);
+                  const isUp = last >= first;
+                  const mainColor = isUp ? '#10b981' : '#ef4444';
+                  
+                  return (
+                    <div 
+                      ref={chartRef}
+                      onMouseDown={(e) => {
+                        const target = e.target;
+                        const isBrush = target.closest('.recharts-brush');
+                        if (!isBrush) {
+                          handleMouseDown(e);
+                        }
+                      }}
+                      className="chart-container"
+                      style={{ 
+                        cursor: isDragging ? 'grabbing' : 'grab', 
+                        touchAction: 'none',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height={450}>
+                        <AreaChart data={visibleData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }} isAnimationActive={true}>
+                          <defs>
+                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={mainColor} stopOpacity={0.3}/>
+                              <stop offset="100%" stopColor={mainColor} stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid 
+                            strokeDasharray="0" 
+                            stroke="rgba(255, 255, 255, 0.05)" 
+                            vertical={false}
+                            horizontal={true}
+                          />
+                          <XAxis 
+                            dataKey="timestamp" 
+                            tick={false}
+                            stroke="transparent"
+                            tickLine={false}
+                          />
+                          <YAxis 
+                            domain={['dataMin - 10', 'dataMax + 10']}
+                            tick={false}
+                            stroke="transparent"
+                            tickLine={false}
+                            width={0}
+                          />
+                          <Tooltip 
+                            contentStyle={{
+                              backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                              border: `1px solid ${mainColor}33`,
+                              borderRadius: '12px',
+                              color: '#fff',
+                              boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
+                              padding: '12px'
+                            }}
+                            formatter={(value) => [
+                              `$${parseFloat(value).toFixed(2)}`,
+                              'Balance'
+                            ]}
+                            labelFormatter={(label, payload) => {
+                              if (payload && payload[0] && payload[0].payload.fullDate) {
+                                return payload[0].payload.fullDate;
+                              }
+                              return label;
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke={mainColor}
+                            strokeWidth={2.5}
+                            fill="url(#colorValue)"
+                            dot={false}
+                            isAnimationActive={true}
+                          />
+                          <Brush 
+                            dataKey="timestamp" 
+                            height={25} 
+                            stroke={mainColor}
+                            fill="transparent"
+                            travellerWidth={6}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
         </div>
       </div>
+
+      {showWalletManager && (
+        <WalletManager
+          addresses={walletAddresses}
+          onAddressesChange={setWalletAddresses}
+          onClose={() => setShowWalletManager(false)}
+        />
+      )}
     </div>
   );
 }
