@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { formatAddress, copyToClipboard } from '../utils/helpers';
 
-export default function WalletCard({ walletKey, item, customData, onUpdateCustomData }) {
+export default function WalletCard({ walletKey, item, customData, onUpdateCustomData, enabled = true, onToggleEnabled }) {
   const [isEditing, setIsEditing] = useState(false);
   const addrShort = formatAddress(item.address);
+  const copyRef = useRef(null);
 
-  const handleCopyAddress = async (e) => {
+  const handleCopyAddress = async () => {
     const ok = await copyToClipboard(item.address);
-    if (ok) {
-      const el = e.currentTarget;
+    if (ok && copyRef.current) {
+      const el = copyRef.current;
       const orig = el.innerHTML;
       el.innerHTML = '✓ Copied!';
       el.style.color = '#10b981';
@@ -21,13 +22,24 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
   };
 
   return (
-    <div className="card" data-card-key={walletKey}>
-      <div className="card-label">{walletKey.toUpperCase()}</div>
+    <div className="card" data-card-key={walletKey} style={enabled ? undefined : { opacity: 0.55 }}>
+      <div className="card-header-row">
+        <div className="card-label">{walletKey.toUpperCase()}</div>
+        <button
+          className={`toggle ${enabled ? 'on' : 'off'}`}
+          onClick={() => onToggleEnabled && onToggleEnabled(walletKey, !enabled)}
+          title={enabled ? 'Disable this miner' : 'Enable this miner'}
+        >
+          <span className="toggle-knob"></span>
+          <span className="toggle-text">{enabled ? 'Active' : 'Disabled'}</span>
+        </button>
+      </div>
       <div
         className="card-address"
         style={{ cursor: 'pointer' }}
         onClick={handleCopyAddress}
         title="Click to copy"
+        ref={copyRef}
       >
         {addrShort}
       </div>

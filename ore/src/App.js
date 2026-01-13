@@ -2,26 +2,9 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import './App.css';
 import WalletManager from './components/WalletManager';
-
-const rpcEndpoints = [
-  'https://mainnet.helius-rpc.com/?api-key=c17d7381-856c-4e14-9f72-ba31e6e0957d',
-  'https://rpc.ankr.com/solana',
-  'https://solana-rpc.publicnode.com',
-];
-
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
-
-const DEFAULT_ADDRESSES = [
-  { address: '9S5uzKP3HEcP69Hz978X5j4jx2f8oT1gQgq636g921mg', index: 'ore1' },
-  { address: '4d7zxRVL35ciYRvxPtSfkExbN4UfmVhbwSmj7rnQbE6W', index: 'ore2' },
-  { address: 'DJ4bqPXiMwTqgUPyYt3WYqqSWv7Qdn1U9pzm2XgZtfmP', index: 'ore3' },
-  { address: '2MsL3mh7zmcCi7Ynq7cFu3Tkhgv8TAz7JX3Uo1XARTn5', index: 'ore4' },
-  { address: '55Bb6GcaL6bagZvmQrXy81efMNGUoEzpZchfYh2z4uoq', index: 'ore5' },
-  { address: 'DYZU4dLQ6CoUpPfjptjQyzJraA5kx8qBT9hbRVo44han', index: 'ore6' },
-  { address: '2zZcbKPCJ7jV68RPN8jt1LeuVgyTKUQj2L3tf3enskTa', index: 'edge1' },
-];
-
-const REFRESH_SECONDS = 60;
+import StatsCard from './components/StatsCard';
+import WalletCard from './components/WalletCard';
+import { RPC_ENDPOINTS, API_BASE as API_BASE_CONST, WALLET_ADDRESSES, REFRESH_SECONDS } from './utils/constants';
 
 function useLocalStorageObject(key, defaultValue) {
   const load = useCallback(() => {
@@ -44,10 +27,6 @@ function useLocalStorageObject(key, defaultValue) {
   return [value, setValue];
 }
 
-function formatAddr(addr) {
-  return addr.substring(0, 12) + '...' + addr.substring(addr.length - 8);
-}
-
 function App() {
   const [active, setActive] = useState('overview');
   const [loading, setLoading] = useState(false);
@@ -56,9 +35,9 @@ function App() {
   const [results, setResults] = useState(null); // { [key]: {address, sol, ore, price}, total }
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [previousSnapshot, setPreviousSnapshot] = useState(null); // { generatedAt, wallets }
-  const [editing, setEditing] = useState({}); // { key: boolean }
   const [customDataMap, setCustomDataMap] = useLocalStorageObject('wallet_custom_map', {});
-  const [walletAddresses, setWalletAddresses] = useLocalStorageObject('wallet_addresses', DEFAULT_ADDRESSES);
+  const [enabledMap, setEnabledMap] = useLocalStorageObject('wallet_enabled_map', {});
+  const [walletAddresses, setWalletAddresses] = useLocalStorageObject('wallet_addresses', WALLET_ADDRESSES);
   const [showWalletManager, setShowWalletManager] = useState(false);
   const [historyData, setHistoryData] = useState([]); // Graph data from API
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -68,6 +47,7 @@ function App() {
   const [timeFilter, setTimeFilter] = useState('all');
 
   const rpcIndexRef = useRef(0);
+  const API_BASE = API_BASE_CONST;
   const chartRef = useRef(null);
 
   // Wheel zoom handler
@@ -195,6 +175,10 @@ function App() {
     setCustomDataMap((m) => ({ ...m, [key]: { ...loadCustomData(key), [field]: value } }));
   }, [loadCustomData, setCustomDataMap]);
 
+  const setEnabled = useCallback((key, value) => {
+    setEnabledMap((m) => ({ ...m, [key]: value }));
+  }, [setEnabledMap]);
+
   const fetchBalanceHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
@@ -219,7 +203,7 @@ function App() {
     } finally {
       setHistoryLoading(false);
     }
-  }, []);
+  }, [API_BASE]);
 
   const fetchPrices = useCallback(async () => {
     try {
@@ -256,13 +240,13 @@ function App() {
     };
 
     try {
-      return await attempt(rpcEndpoints[rpcIndexRef.current]);
+      return await attempt(RPC_ENDPOINTS[rpcIndexRef.current]);
     } catch (error) {
       console.error('SOL balance error:', error?.message || error);
-      while (rpcIndexRef.current < rpcEndpoints.length - 1) {
+      while (rpcIndexRef.current < RPC_ENDPOINTS.length - 1) {
         rpcIndexRef.current += 1;
         try {
-          return await attempt(rpcEndpoints[rpcIndexRef.current]);
+          return await attempt(RPC_ENDPOINTS[rpcIndexRef.current]);
         } catch (e) {
           console.warn('RPC fallback failed:', e?.message || e);
         }
@@ -375,19 +359,6 @@ function App() {
     e.target.value = '';
   }, []);
 
-  const copyAddress = useCallback(async (address) => {
-    try {
-      await navigator.clipboard.writeText(address);
-      return true;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  const toggleEdit = useCallback((key) => {
-    setEditing((e) => ({ ...e, [key]: !e[key] }));
-  }, []);
-
   const setField = useCallback((key, field, value) => {
     saveCustomData(key, field, value);
   }, [saveCustomData]);
@@ -426,28 +397,7 @@ function App() {
             </div>
           </div>
 
-          {stats && (
-            <div id="stats-container">
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-label">📊 Total Value</div>
-                  <div className="stat-value">${stats.totalValue?.toFixed(2)}</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">🌐 Total SOL</div>
-                  <div className="stat-value">{stats.totalSol?.toFixed(4)}</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">💎 Total ORE</div>
-                  <div className="stat-value">{stats.totalOre?.toFixed(4)}</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">👛 Wallets</div>
-                  <div className="stat-value">{stats.walletCount}</div>
-                </div>
-              </div>
-            </div>
-          )}
+          {stats && <StatsCard stats={stats} />}
 
           {error && <div id="error-container"><div className="error">⚠️ Error: {error}</div></div>}
 
@@ -462,89 +412,22 @@ function App() {
             {results && Object.entries(results)
               .filter(([k]) => k !== 'total')
               .map(([key, item]) => {
-                const isEditing = !!editing[key];
+                const enabled = enabledMap[key] !== undefined ? enabledMap[key] : false;
+                return { key, item, enabled };
+              })
+              .sort((a, b) => Number(b.enabled) - Number(a.enabled))
+              .map(({ key, item, enabled }) => {
                 const c = loadCustomData(key);
-                const addrShort = formatAddr(item.address);
                 return (
-                  <div className="card" data-card-key={key} key={key}>
-                    <div className="card-label">{key.toUpperCase()}</div>
-                    <div
-                      className="card-address"
-                      style={{ cursor: 'pointer' }}
-                      onClick={async (e) => {
-                        const ok = await copyAddress(item.address);
-                        if (ok) {
-                          const el = e.currentTarget;
-                          const orig = el.innerHTML;
-                          el.innerHTML = '✓ Copied!';
-                          el.style.color = '#10b981';
-                          setTimeout(() => { el.innerHTML = orig; el.style.color = ''; }, 1500);
-                        }
-                      }}
-                      title="Click to copy"
-                    >
-                      {addrShort}
-                    </div>
-                    <div className="card-row">
-                      <div className="card-column">
-                        <div className="card-data-label">SOL</div>
-                        <div className="card-data-value">{item.sol === '-' ? '-' : item.sol.toFixed(4)}</div>
-                      </div>
-                      <div className="card-column">
-                        <div className="card-data-label">ORE</div>
-                        <div className="card-data-value">{item.ore === '-' ? '-' : item.ore.toFixed(4)}</div>
-                      </div>
-                      <div className="card-column">
-                        <div className="card-data-label">PRICE ($)</div>
-                        <div className="card-data-value price-value">${item.price.toFixed(2)}</div>
-                      </div>
-                    </div>
-
-                    {!isEditing && (
-                      <div className={`tags-container`}>
-                        {c.deploymentType || c.evPercent || c.totalSol || c.noOfTiles ? (
-                          <>
-                            {c.deploymentType && (<div className="tag"><span className="tag-label">Type:</span><span className="tag-value">{c.deploymentType}</span></div>)}
-                            {c.evPercent && (<div className="tag"><span className="tag-label">EV:</span><span className="tag-value">{c.evPercent}</span></div>)}
-                            {c.totalSol && (<div className="tag"><span className="tag-label">Total SOL:</span><span className="tag-value">{c.totalSol}</span></div>)}
-                            {c.noOfTiles && (<div className="tag"><span className="tag-label">Tiles:</span><span className="tag-value">{c.noOfTiles}</span></div>)}
-                          </>
-                        ) : (
-                          <div className="tag"><span className="tag-value" style={{ color: '#64748b' }}>No data - click Edit to add</span></div>
-                        )}
-                      </div>
-                    )}
-
-                    {isEditing && (
-                      <div className="editable-fields">
-                        <div className="editable-field">
-                          <div className="editable-label">Deployment Type</div>
-                          <input className="editable-input" value={c.deploymentType} placeholder="e.g., Cloud" onChange={(e) => setField(key, 'deploymentType', e.target.value)} />
-                        </div>
-                        <div className="editable-field">
-                          <div className="editable-label">EV %</div>
-                          <input className="editable-input" value={c.evPercent} placeholder="e.g., 15%" onChange={(e) => setField(key, 'evPercent', e.target.value)} />
-                        </div>
-                        <div className="editable-field">
-                          <div className="editable-label">Total SOL</div>
-                          <input className="editable-input" value={c.totalSol} placeholder="e.g., 5.5" onChange={(e) => setField(key, 'totalSol', e.target.value)} />
-                        </div>
-                        <div className="editable-field">
-                          <div className="editable-label">No of Tiles</div>
-                          <input className="editable-input" value={c.noOfTiles} placeholder="e.g., 10" onChange={(e) => setField(key, 'noOfTiles', e.target.value)} />
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      className="edit-button"
-                      onClick={() => toggleEdit(key)}
-                      title="Edit card details"
-                      style={isEditing ? { background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' } : undefined}
-                    >
-                      {isEditing ? '✓' : '✏️'}
-                    </button>
-                  </div>
+                  <WalletCard
+                    key={key}
+                    walletKey={key}
+                    item={item}
+                    customData={c}
+                    onUpdateCustomData={setField}
+                    enabled={enabled}
+                    onToggleEnabled={setEnabled}
+                  />
                 );
               })}
           </div>
