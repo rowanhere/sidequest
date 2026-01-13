@@ -5,6 +5,15 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
   const [isEditing, setIsEditing] = useState(false);
   const addrShort = formatAddress(item.address);
   const addressRef = useRef(null);
+  const clickTimeoutRef = useRef(null);
+  const [savedPrice, setSavedPrice] = useState(() => {
+    const s = localStorage.getItem(`price_${walletKey}`);
+    return s ? parseFloat(s) : null;
+  });
+  const [saveConfirm, setSaveConfirm] = useState(false);
+  const [showSavedOverlay, setShowSavedOverlay] = useState(false);
+  const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
+  const [pendingPrice, setPendingPrice] = useState(null);
 
   const handleCopyAddress = async () => {
     const ok = await copyToClipboard(item.address);
@@ -23,6 +32,53 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
 
   const handleFieldChange = (field, value) => {
     onUpdateCustomData(walletKey, field, value);
+  };
+
+  const handlePriceClick = () => {
+    if (clickTimeoutRef.current) {
+      // double click
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+
+      const s = localStorage.getItem(`price_${walletKey}`);
+      if (s) {
+        setSavedPrice(parseFloat(s));
+      }
+      setShowSavedOverlay(true);
+      setTimeout(() => setShowSavedOverlay(false), 3000);
+    } else {
+      // possible single click - wait to confirm not a double
+      clickTimeoutRef.current = setTimeout(() => {
+        clickTimeoutRef.current = null;
+        // single click: prepare to save current price, but confirm overwrite if exists
+        const price = item.price;
+        const existing = localStorage.getItem(`price_${walletKey}`);
+        if (existing !== null) {
+          setPendingPrice(price);
+          setShowOverrideConfirm(true);
+        } else {
+          localStorage.setItem(`price_${walletKey}`, price.toString());
+          setSavedPrice(price);
+          setSaveConfirm(true);
+          setTimeout(() => setSaveConfirm(false), 1500);
+        }
+      }, 250);
+    }
+  };
+
+  const confirmOverride = () => {
+    if (pendingPrice === null) return;
+    localStorage.setItem(`price_${walletKey}`, pendingPrice.toString());
+    setSavedPrice(pendingPrice);
+    setShowOverrideConfirm(false);
+    setPendingPrice(null);
+    setSaveConfirm(true);
+    setTimeout(() => setSaveConfirm(false), 1500);
+  };
+
+  const cancelOverride = () => {
+    setShowOverrideConfirm(false);
+    setPendingPrice(null);
   };
 
   return (
@@ -63,8 +119,69 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
         </div>
         <div className="card-column">
           <div className="card-data-label">PRICE ($)</div>
-          <div className="card-data-value price-value">
+          <div
+            className="card-data-value price-value"
+            onClick={handlePriceClick}
+            style={{ cursor: 'pointer', position: 'relative' }}
+            title="Single click = save price, Double-click = show saved price"
+          >
             ${item.price.toFixed(2)}
+
+            {saveConfirm && (
+              <div style={{
+                position: 'absolute',
+                top: -28,
+                right: 8,
+                background: '#10b981',
+                color: 'white',
+                padding: '4px 8px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 700
+              }}>
+                Saved
+              </div>
+            )}
+
+            {showOverrideConfirm && (
+              <div style={{
+                position: 'absolute',
+                top: -64,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: '#111827',
+                color: 'white',
+                padding: '8px 10px',
+                borderRadius: 8,
+                boxShadow: '0 6px 18px rgba(2,6,23,0.6)',
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center'
+              }}>
+                <div style={{ fontSize: 13 }}>
+                  Override saved price?
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); confirmOverride(); }} style={{ background: '#ef4444', color: 'white', border: 0, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}>Override</button>
+                <button onClick={(e) => { e.stopPropagation(); cancelOverride(); }} style={{ background: '#374151', color: 'white', border: 0, padding: '6px 8px', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
+              </div>
+            )}
+
+            {showSavedOverlay && (
+              <div style={{
+                position: 'absolute',
+                top: -40,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'linear-gradient(90deg,#0ea5a4,#06b6d4)',
+                color: 'white',
+                padding: '8px 12px',
+                borderRadius: 10,
+                boxShadow: '0 6px 18px rgba(2,6,23,0.6)',
+                fontWeight: 700
+              }}>
+                {savedPrice !== null ? `$${savedPrice.toFixed(2)}` : 'No saved price'}
+              </div>
+            )}
           </div>
         </div>
       </div>
