@@ -69,12 +69,12 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
         </div>
       </div>
 
-      {!isEditing && (
         <div className="tags-container">
           {customData.deploymentType ||
           customData.evPercent ||
           customData.totalSol ||
-          customData.noOfTiles ? (
+          customData.noOfTiles ||
+          customData.timeframe ? (
             <>
               {customData.deploymentType && (
                 <div className="tag">
@@ -86,6 +86,12 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
                 <div className="tag">
                   <span className="tag-label">EV:</span>
                   <span className="tag-value">{customData.evPercent}</span>
+                </div>
+              )}
+              {customData.timeframe && (
+                <div className="tag">
+                  <span className="tag-label">Timeframe:</span>
+                  <span className="tag-value">{customData.timeframe}</span>
                 </div>
               )}
               {customData.totalSol && (
@@ -109,7 +115,6 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
             </div>
           )}
         </div>
-      )}
 
       {isEditing && (
         <div className="editable-fields">
@@ -130,6 +135,16 @@ export default function WalletCard({ walletKey, item, customData, onUpdateCustom
               value={customData.evPercent}
               placeholder="e.g., 15%"
               onChange={(e) => handleFieldChange('evPercent', e.target.value)}
+            />
+          </div>
+
+          <div className="editable-field">
+            <div className="editable-label">Timeframe</div>
+            <input
+              className="editable-input"
+              value={customData.timeframe}
+              placeholder="e.g., 5"
+              onChange={(e) => handleFieldChange('timeframe', e.target.value)}
             />
           </div>
 

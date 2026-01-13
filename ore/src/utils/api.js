@@ -85,6 +85,26 @@ export async function fetchAllWalletData() {
   return { timestamp: new Date().toLocaleString(), results: out };
 }
 
+export async function fetchMinerSettings(addr) {
+  try {
+    const res = await fetch(`${API_BASE}/api/miner?address=${addr}`);
+    const data = await res.json();
+    if (data.settings) {
+      return {
+        deploymentType: data.settings.deployment_mode,
+        evPercent: `${data.settings.min_ev_percent}%`,
+        totalSol: data.settings.deployment_amount_sol,
+        noOfTiles: data.settings.tiles_per_round,
+        timeframe: data.settings.mining_cost_timeframe
+      };
+    }
+    return {};
+  } catch (e) {
+    console.error('Miner settings fetch error:', e);
+    return {};
+  }
+}
+
 export async function fetchBalanceHistory() {
   try {
     const res = await fetch(`${API_BASE}/api/snapshots`);
@@ -108,3 +128,4 @@ export async function fetchBalanceHistory() {
     return [];
   }
 }
+

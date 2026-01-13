@@ -5,6 +5,7 @@ import WalletManager from './components/WalletManager';
 import StatsCard from './components/StatsCard';
 import WalletCard from './components/WalletCard';
 import { RPC_ENDPOINTS, API_BASE as API_BASE_CONST, WALLET_ADDRESSES, REFRESH_SECONDS } from './utils/constants';
+import { fetchMinerSettings } from './utils/api';
 
 function useLocalStorageObject(key, defaultValue) {
   const load = useCallback(() => {
@@ -273,6 +274,7 @@ function App() {
     let totalPrice = 0;
     let totalSol = 0;
     let totalOre = 0;
+    const newCustomData = { ...customDataMap };
 
     for (const item of walletAddresses) {
       const sol = await fetchSolBalance(item.address);
@@ -282,11 +284,21 @@ function App() {
       totalSol += sol;
       totalOre += ore;
       out[item.index] = { address: item.address, sol, ore, price };
+
+      // Fetch miner settings and update custom data
+      const minerSettings = await fetchMinerSettings(item.address);
+      if (Object.keys(minerSettings).length > 0) {
+        newCustomData[item.index] = { ...newCustomData[item.index], ...minerSettings };
+      }
     }
 
     out.total = { address: '--- TOTAL ---', sol: totalSol, ore: totalOre, price: totalPrice };
+    
+    // Update custom data map
+    setCustomDataMap(newCustomData);
+    
     return { timestamp: new Date().toLocaleString(), results: out };
-  }, [fetchOreBalance, fetchPrices, fetchSolBalance, walletAddresses]);
+  }, [fetchOreBalance, fetchPrices, fetchSolBalance, walletAddresses]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = useCallback(async () => {
     setLoading(true);
